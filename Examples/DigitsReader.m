@@ -20,6 +20,7 @@
 %
 
 classdef DigitsReader < matlab.System & matlab.system.mixin.FiniteSource
+   
    properties(Nontunable)
       imageFilename = 'train-images-idx3-ubyte'
       labelFilename = 'train-labels-idx1-ubyte'
@@ -48,6 +49,19 @@ classdef DigitsReader < matlab.System & matlab.system.mixin.FiniteSource
          blockSize = fix(blockSize);
          assert(blockSize>0,'blockSize must be >= 1');
          self.blockSize = blockSize;
+      end
+      
+      function goToImage(self,i)
+         if self.imageFID == -1
+            self.setup();
+         end
+         assert(i<self.nImages,'index must be <= total number of images');
+         nRows = self.nRows;                                  %#ok<*PROPLC>
+         nCols = self.nCols;
+         spf = nRows*nCols;
+
+         fseek(self.imageFID,4*4 + (i-1)*spf,'bof');
+         fseek(self.labelFID,2*4 + (i-1),'bof');
       end
    end
    
