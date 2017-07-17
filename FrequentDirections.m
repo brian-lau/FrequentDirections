@@ -1,22 +1,25 @@
 % FREQUENTDIRECTIONS          Streaming low-rank matrix approximation
 % 
-%     fd = FrequentDirections(d,k,varargin)
+%     sketcher = FrequentDirections(d,k,varargin)
 %
-%     Builds sketch of matrix using Frequent Directions algorithm (Liberty,
-%     2013). This object works for matrices that are stored completely 
-%     in-memory as well as data streams (see examples).
+%     Given an [n x d] matrix A, builds a [k x d] sketch B, where typically
+%     k << n, using the Frequent Directions algorithm (Liberty 2013). This 
+%     object works for matrices that are stored completely in-memory as well 
+%     as data streams (see examples).
 %
 %     Implementing a number of FD variants (Desai et al 2016),
 %        Classic FD: alpha = 1, fast = false
 %           As defined in Liberty (2013)
 %        Fast FD: alpha = 1, fast = true
-%           Defined in Liberty (2013). We follow the convention of Desai et 
-%           al (2016), ensuring at most half of the rows of the sketch are 
-%           all zeros after each rank reduction step. Reduces the runtime 
-%           from O(ndk^2) to O(ndk) at the expense of a sketch sometimes only 
-%           using half of its rows (i.e., the lower half of B may contain all 
-%           zeroes or actual data samples). To make identical to Liberty's 
-%           version, double k.
+%           Fast variant of FD that ensures that at most half of the rows
+%           (k*alpha/2) of B are zeroed at each iteration (Liberty 2013). 
+%           We follow the convention of Desai et al (2016), ensuring at most 
+%           half of the rows of the sketch are all zeros after each rank 
+%           reduction step.
+%           Reduces the runtime from O(ndk^2) to O(ndk) at the expense of a 
+%           sketch sometimes only using half of its rows (i.e., the lower 
+%           half of B may contain all zeroes or actual data samples). To 
+%           make identical to Liberty's version, double k.
 %        Incremental SVD (iSVD): alpha = 0, fast = false
 %        Parameterized FD: alpha = scalar in (0,1), fast = false
 %        Fast Parameterized FD: alpha = scalar in (0,1), fast = true
@@ -35,20 +38,26 @@
 %                  (default = FALSE)
 %     figureAxis - axis handle for use when monitor = TRUE
 %
+%     PROPERTIES
+%     d - data dimensionality determined by data given to object
+%         (rows are samples, columns are dimensions)
+%
 %     METHODS
 %     step    - given a [n x d] matrix, runs FD until all samples consumed
 %     get     - returns sketch, B [k x d]
+%     coverr  - given [n x d] matrix A, returns covariance error of sketch
+%               ||A'A - B'B||_2 / ||A||_F^2
 %     release - release resources to change parameters
 %     reset   - delete current sketch and reset counters
 %
 %     EXAMPLE
-%     d = 500;
-%     k = 64;
+%     k = 64;          % sketch size
 %     monitor = false; % set true if you want to watch evolution
 %
 %     % Initialize object
-%     sketcher = FrequentDirections(d,k,'monitor',monitor);
+%     sketcher = FrequentDirections(k,'monitor',monitor);
 %     
+%     d = 512;         % data dimensionality
 %     count = 0;
 %     while count < 1000
 %        data = randn(1,d);   % Random sample
@@ -58,7 +67,7 @@
 %
 %     REFERENCE
 %     Desai, Ghashami, & Phillips (2016). Improved practical matrix sketching 
-%       with guarantees. IEEE Transactions on Knowledge and Data Engineering,
+%       with guarantees. IEEE Transactions on Knowledge & Data Engineering,
 %       28(7), 1678-1690
 %     Liberty (2013). Simple and deterministic matrix sketching. In 
 %       Proceedings of the 19th ACM SIGKDD international conference on 
@@ -82,9 +91,12 @@
 % o  Trigger final SVD for fast = true?
 
 classdef FrequentDirections < matlab.System
-      
+
+   properties(Dependent)
+      d
+   end
+   
    properties(Nontunable)
-      d                 % data dimensionality
       k                 % sketch size
       alpha = 1         % [0,1] skrinkage control, 0 = iSVD, 1 = original FD
       fast = true       % boolean
@@ -96,6 +108,7 @@ classdef FrequentDirections < matlab.System
    end
    
    properties(Access = private)
+      d_
       B_                % sketch
       reduceRankHandle_ % handle to rank reduction algorithm
       n_                % counter tracking # of data samples consumed
@@ -104,19 +117,22 @@ classdef FrequentDirections < matlab.System
    
    methods
       function self = FrequentDirections(varargin)
-         setProperties(self,nargin,varargin{:},'d','k');
+         setProperties(self,nargin,varargin{:},'k');
+         %setProperties(self,nargin,varargin{:},'d','k');
       end
       
-      function set.d(self,d)
-         d = fix(d);
-         assert(d>0,'d must be an integer > 0');
-         self.d = d;
+      function set.d_(self,d)
+         if ~isempty(d)
+            d = fix(d);
+            assert(d>0,'d must be an integer > 0');
+            assert(self.k<=d,'Sketch size k must <= data dimensionality');
+            self.d_ = d;
+         end
       end
       
       function set.k(self,k)
          k = fix(k);
          assert(k>0,'k must be an integer > 0');
-         assert(k<=self.d,'k must <= d');
          self.k = k;
       end
       
@@ -133,13 +149,17 @@ classdef FrequentDirections < matlab.System
          end
       end
       
+      function d = get.d(self)
+         d = self.d_;
+      end
+      
       function B = get(self)
          B = self.B_;
       end
       
       function err = coverr(self,A)
          B = get(self);
-         err = norm(A'*A - B'*B,'fro')/norm(A,'fro')^2;
+         err = norm(A'*A - B'*B)/norm(A,'fro')^2;
       end
       
       function plot(self,S,Sprime)
@@ -158,7 +178,6 @@ classdef FrequentDirections < matlab.System
             hold on;
             plot(ind,s,'ro');
             plot(ind,sprime,'bs');
-            %legend({'Raw' 'Shrink'});
             ax.XLim = [ind(1) ind(end)];
             ax.YLabel.String = 'Singular value';
          else
@@ -175,12 +194,16 @@ classdef FrequentDirections < matlab.System
    end
    
    methods(Access = protected)
-      function setupImpl(self)
+      function setupImpl(self,A)
          if self.fast
             self.reduceRankHandle_ = @self.reduceRankFast;
          else
             self.reduceRankHandle_ = @self.reduceRankOriginal;
          end
+         
+         [~,p] = size(A);
+         self.d_ = p;
+         self.B_ = zeros(self.k,p);
       end
       
       function stepImpl(self,A)
@@ -189,13 +212,14 @@ classdef FrequentDirections < matlab.System
          end
          
          [n,p] = size(A);
-         assert(p==self.d,'Input dimensionality does not match past samples!');
-         
-         B = self.B_;
+         assert(p==self.d_,...
+            'Input dimensionality does not match past samples!');
+
          k = self.k;                                          %#ok<*PROPLC>
          alpha = self.alpha;
          reduceRank = self.reduceRankHandle_;
-         
+         B = self.B_;
+
          %% Generic Frequent Directions algorithm
          count = 0; % keep track of SVD calls
          ind = [];  % keep track of zero rows of B
@@ -231,15 +255,13 @@ classdef FrequentDirections < matlab.System
       
       function releaseImpl(self)
          self.B_ = [];
-         self.n_ = 0;
-         self.count_ = 0;
+         self.d_ = [];
          if self.monitor
             close(self.figureAxis.Parent);
          end
       end
       
       function resetImpl(self)
-         self.B_ = zeros(self.k,self.d);
          self.n_ = 0;
          self.count_ = 0;
       end

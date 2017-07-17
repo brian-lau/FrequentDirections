@@ -10,10 +10,9 @@ DR = DigitsReader('imageFilename','train-images-idx3-ubyte',...
                   'labelFilename','train-labels-idx1-ubyte');
 
 % Sketch object
-d = 28*28;
 k = 64;
 alpha = 0.2;
-sketcher = FrequentDirections(d,k,'alpha',alpha);
+sketcher = FrequentDirections(k,'alpha',alpha);
 
 % Process streamed data samples
 tic;

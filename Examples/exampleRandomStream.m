@@ -1,7 +1,7 @@
 d = 500;
 k = 64;
 monitor = true;
-sketcher = FrequentDirections(d,k,'monitor',monitor);
+sketcher = FrequentDirections(k,'monitor',monitor);
 
 %% Stream sample-by-sample
 count = 0;
