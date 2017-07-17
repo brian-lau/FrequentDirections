@@ -3,20 +3,20 @@
 %     fd = FrequentDirections(d,k,varargin)
 %
 %     Builds sketch of matrix using Frequent Directions algorithm (Liberty,
-%     2013). This object works for matrices that are completely in-memory 
-%     as well as data streams (see examples).
+%     2013). This object works for matrices that are stored completely 
+%     in-memory as well as data streams (see examples).
 %
-%     Parameters permit implementing a number of Frequent Directions
-%     variants (Desai et al 2016),
+%     Implementing a number of FD variants (Desai et al 2016),
 %        Classic FD: alpha = 1, fast = false
 %           As defined in Liberty (2013)
 %        Fast FD: alpha = 1, fast = true
-%           Defined in Liberty (2013). Note that we follow the convention 
-%           of Desai et al (2016), ensuring at most half of the rows of the 
-%           sketch are all zeros after each rank reduction step. Reduces 
-%           the runtime from O(ndk^2) to O(ndk) at the expense of a sketch 
-%           sometimes only using half of its rows. To make identical to 
-%           Liberty's version, double k.
+%           Defined in Liberty (2013). We follow the convention of Desai et 
+%           al (2016), ensuring at most half of the rows of the sketch are 
+%           all zeros after each rank reduction step. Reduces the runtime 
+%           from O(ndk^2) to O(ndk) at the expense of a sketch sometimes only 
+%           using half of its rows (i.e., the lower half of B may contain all 
+%           zeroes or actual data samples). To make identical to Liberty's 
+%           version, double k.
 %        Incremental SVD (iSVD): alpha = 0, fast = false
 %        Parameterized FD: alpha = scalar in (0,1), fast = false
 %        Fast Parameterized FD: alpha = scalar in (0,1), fast = true
@@ -28,9 +28,11 @@
 %         referred to as l (ell) in references and other implementations
 %
 %     OPTIONAL (as name/value pairs, order irrelevant)
-%     fast       - (default = TRUE)
-%     alpha      - (default = 1)
-%     monitor    - (monitor = false)
+%     fast       - boolean, true indicates fast algorithm (default = TRUE)
+%     alpha      - scalar in [0,1], controls fraction of sketch rows zeroed
+%                  on each rank reduction (default = 1)
+%     monitor    - boolean, true plots singular values at each rank reduction
+%                  (default = FALSE)
 %     figureAxis - axis handle for use when monitor = TRUE
 %
 %     METHODS
@@ -89,8 +91,8 @@ classdef FrequentDirections < matlab.System
    end
    
    properties
-      monitor = true    % true plots singular values to axis
-      figureAxis
+      monitor = false   % true plots singular values to axis
+      figureAxis        % axis handle for plotting singular values
    end
    
    properties(Access = private)
@@ -158,10 +160,15 @@ classdef FrequentDirections < matlab.System
             plot(ind,sprime,'bs');
             %legend({'Raw' 'Shrink'});
             ax.XLim = [ind(1) ind(end)];
+            ax.YLabel.String = 'Singular value';
          else
             ax.Children(1).YData = s;
             ax.Children(2).YData = sprime;
          end
+         
+         ax.Title.String = {sprintf('d=%g, k=%g, fast=%g, alpha=%1.2f',...
+            self.d,self.k,self.fast,self.alpha) ...
+            sprintf('#data=%g, #SVD=%g',self.n_,self.count_)};
          
          drawnow;
       end
