@@ -1,7 +1,9 @@
 d = 500;
-sketcher = FrequentDirections(d,64,'alpha',1);
+k = 64;
+monitor = true;
+sketcher = FrequentDirections(d,k,'monitor',monitor);
 
-% Stream sample-by-sample
+%% Stream sample-by-sample
 count = 0;
 while count < 1000
    data = randn(1,d);
@@ -11,7 +13,7 @@ end
 
 sketcher.release();
 
-% Stream blocks of samples
+%% Stream blocks of samples
 blksz = 10;
 count = 0;
 while count < 1000
