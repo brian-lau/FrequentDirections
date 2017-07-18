@@ -7,19 +7,16 @@
 %     object works for matrices that are stored completely in-memory as well 
 %     as data streams (see examples).
 %
-%     Implementing a number of FD variants (Desai et al 2016),
+%     Implements a number of FD variants (Desai et al 2016),
 %        Classic FD: alpha = 1, fast = false
 %           As defined in Liberty (2013)
 %        Fast FD: alpha = 1, fast = true
 %           Fast variant of FD that ensures that at most half of the rows
 %           (k*alpha/2) of B are zeroed at each iteration (Liberty 2013). 
-%           We follow the convention of Desai et al (2016), ensuring at most 
-%           half of the rows of the sketch are all zeros after each rank 
-%           reduction step.
 %           Reduces the runtime from O(ndk^2) to O(ndk) at the expense of a 
 %           sketch sometimes only using half of its rows (i.e., the lower 
-%           half of B may contain all zeroes or actual data samples). To 
-%           make identical to Liberty's version, double k.
+%           half of B may contain all zeroes or actual data samples).
+%           We halve k here; to match Liberty's version, double k.
 %        Incremental SVD (iSVD): alpha = 0, fast = false
 %        Parameterized FD: alpha = scalar in (0,1), fast = false
 %        Fast Parameterized FD: alpha = scalar in (0,1), fast = true
@@ -47,8 +44,8 @@
 %     get     - returns sketch, B [k x d]
 %     coverr  - given [n x d] matrix A, returns covariance error of sketch
 %               ||A'A - B'B||_2 / ||A||_F^2
-%     release - release resources to change parameters
-%     reset   - delete current sketch and reset counters
+%     release - delete current sketch & release resources to change parameters
+%     reset   - reset counters
 %
 %     EXAMPLE
 %     k = 64;          % sketch size
@@ -60,7 +57,7 @@
 %     d = 512;         % data dimensionality
 %     count = 0;
 %     while count < 1000
-%        data = randn(1,d);   % Random sample
+%        data = randn(1,d);   % random sample
 %        sketcher(data);      % consume sample
 %        count = count + 1;
 %     end
@@ -75,7 +72,7 @@
 
 %     $ Copyright (C) 2017 Brian Lau, brian.lau@upmc.fr $
 %     The full license and most recent version of the code can be found at:
-%     https://github.com/brian-lau/
+%     https://github.com/brian-lau/FrequentDirections
 %
 %     This program is free software: you can redistribute it and/or modify
 %     it under the terms of the GNU General Public License as published by
@@ -93,7 +90,7 @@
 classdef FrequentDirections < matlab.System
 
    properties(Dependent)
-      d
+      d                 % data dimensionality
    end
    
    properties(Nontunable)
@@ -108,24 +105,27 @@ classdef FrequentDirections < matlab.System
    end
    
    properties(Access = private)
-      d_
+      d_                % data dimensionality
       B_                % sketch
       reduceRankHandle_ % handle to rank reduction algorithm
       n_                % counter tracking # of data samples consumed
       count_            % counter tracking # of SVD calls
    end
    
+   properties(SetAccess = immutable)
+      version = '0.1.0' % Version string
+   end
+   
    methods
       function self = FrequentDirections(varargin)
          setProperties(self,nargin,varargin{:},'k');
-         %setProperties(self,nargin,varargin{:},'d','k');
       end
       
       function set.d_(self,d)
          if ~isempty(d)
             d = fix(d);
             assert(d>0,'d must be an integer > 0');
-            assert(self.k<=d,'Sketch size k must <= data dimensionality');
+            assert(self.k<=d,'Sketch size k must be <= data dimensionality');
             self.d_ = d;
          end
       end
