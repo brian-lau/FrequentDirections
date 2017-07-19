@@ -162,6 +162,24 @@ classdef FrequentDirections < matlab.System
          err = norm(A'*A - B'*B)/norm(A,'fro')^2;
       end
       
+      function err = projerr(self,A,m)
+         if nargin < 3
+            m = 10;
+         end
+         
+         assert(m<self.k,'m must be less than k');
+         
+         % Rank m approximation of A
+         [U,S,V] = svd(A);
+         Am = U(:,1:m)*S(1:m,1:m)*V(:,1:m)';
+         
+         B = get(self);
+         Bm = B(1:m,:);
+         
+         Am_ = A*Bm'*pinv(Bm*Bm')*Bm;
+         err = norm(A-Am_,'fro')^2 / norm(A-Am,'fro')^2;
+      end
+      
       function plot(self,S,Sprime)
          s = diag(S);
          sprime = diag(Sprime);
@@ -219,6 +237,7 @@ classdef FrequentDirections < matlab.System
          alpha = self.alpha;
          reduceRank = self.reduceRankHandle_;
          B = self.B_;
+         monitor = self.monitor;
 
          %% Generic Frequent Directions algorithm
          count = 0; % keep track of SVD calls
@@ -242,7 +261,7 @@ classdef FrequentDirections < matlab.System
                B = Sprime*V';
                count = count + 1;
                
-               if self.monitor
+               if monitor
                   plot(self,S,Sprime);
                end
             end
