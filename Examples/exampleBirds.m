@@ -9,7 +9,7 @@ BR = BirdsReader('filename','image_attribute_labels.txt');
 
 % Sketch object
 k = 20;
-alpha = .8;
+alpha = .2;
 sketcher = FrequentDirections(k,'alpha',alpha,'fast',false);
 
 % Process streamed data samples
@@ -19,10 +19,3 @@ while ~BR.isDone()
    sketcher(attributes);
 end
 toc
-
-%
-BR.release();
-BR.blockSize = 12000;
-A = BR();
-
-sketcher.coverr(A)
