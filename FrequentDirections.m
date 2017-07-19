@@ -113,7 +113,7 @@ classdef FrequentDirections < matlab.System
    end
    
    properties(SetAccess = immutable)
-      version = '0.1.0' % Version string
+      version = '0.1.1' % Version string
    end
    
    methods
@@ -310,7 +310,7 @@ classdef FrequentDirections < matlab.System
          s = diag(S);
          sprime = zeros(size(s));
          
-         skip = floor(k*(1-alpha)/2) + 1;
+         skip = floor(k*(1-alpha)) + 1;
          if skip > 1
             sprime(1:skip) = s(1:skip);
          end
