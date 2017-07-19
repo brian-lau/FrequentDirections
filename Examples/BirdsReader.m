@@ -6,14 +6,14 @@
 %
 %    http://www.vision.caltech.edu/visipedia/CUB-200-2011.html
 %
-%    where the attribute data is a text file 'image_attribute_labels.txt'. 
+%    where the attribute data is the text file 'image_attribute_labels.txt'. 
 %    For example, to stream the entire data set:
 %
 %    BR = BirdsReader('filename','image_attribute_labels.txt');
 %    
 %    while ~BR.isDone()
 %       attributes = BR.step();
-%       % do some processing on the current image
+%       % do some processing on the current attributes
 %    end
 %
 
@@ -21,6 +21,10 @@ classdef BirdsReader < matlab.System & matlab.system.mixin.FiniteSource
    
    properties(Nontunable)
       filename = 'image_attribute_labels.txt'
+      certainty = false
+   end
+   
+   properties(SetAccess = immutable)
       formatSpec = '%f %f %f %f %f %*[^\n]';
       nAttributes = 312;
    end
@@ -31,9 +35,7 @@ classdef BirdsReader < matlab.System & matlab.system.mixin.FiniteSource
    
    properties(SetAccess = private,GetAccess = public)
       FID = -1           % file id for image data
-      
-      %nImages            % # of images
-      currentCount  % index of current image
+      currentCount       % index of current image
    end
    
    methods
@@ -71,24 +73,31 @@ classdef BirdsReader < matlab.System & matlab.system.mixin.FiniteSource
          self.currentCount = 0;
       end
       
-      function attributes = stepImpl(self)
-         n = self.nAttributes*self.blockSize;
+      function [attributes,id] = stepImpl(self)
+         nAttributes = self.nAttributes;                        %#ok<*PROP>
+         n = nAttributes*self.blockSize;
+         if self.certainty
+            col = 4;
+         else
+            col = 3;
+         end
 
          data = textscan(self.FID,self.formatSpec,n,...
-            'Delimiter','Whitespace','CollectOutput',true,'MultipleDelimsAsOne',1);
+            'Delimiter','Whitespace',...
+            'CollectOutput',true,...
+            'MultipleDelimsAsOne',true);
          
          id = unique(data{1}(:,1));
          if self.blockSize == 1
-            attributes = data{1}(:,3)';
+            attributes = data{1}(:,col)';
          else
-            x = data{1}(:,3);
-            attributes = reshape(x,self.nAttributes,numel(x)/self.nAttributes)';
+            x = data{1}(:,col);
+            attributes = reshape(x,nAttributes,numel(x)/nAttributes)';
          end
 
          if ~isempty(id)
             self.currentCount = id(end);
          end
-         %self.currentCount = self.currentCount + 1;
       end
       
       function releaseImpl(self)
