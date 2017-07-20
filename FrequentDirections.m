@@ -162,52 +162,24 @@ classdef FrequentDirections < matlab.System
          err = norm(A'*A - B'*B)/norm(A,'fro')^2;
       end
       
-      function err = projerr(self,A,m)
-         if nargin < 3
+      function err = projerr(self,A,Am,m)
+         if nargin < 4
             m = 10;
          end
          
          assert(m<self.k,'m must be less than k');
          
-         % Rank m approximation of A
-         [U,S,V] = svd(A);
-         Am = U(:,1:m)*S(1:m,1:m)*V(:,1:m)';
+         if (nargin < 3) || isempty(Am)
+            % Rank m approximation of A
+            [U,S,V] = svd(A);
+            Am = U(:,1:m)*S(1:m,1:m)*V(:,1:m)';
+         end
          
          B = get(self);
          Bm = B(1:m,:);
          
          Am_ = A*Bm'*pinv(Bm*Bm')*Bm;
          err = norm(A-Am_,'fro')^2 / norm(A-Am,'fro')^2;
-      end
-      
-      function plot(self,S,Sprime)
-         s = diag(S);
-         sprime = diag(Sprime);
-         ind = 1:numel(s);
-         
-         if isempty(self.figureAxis) || ~self.figureAxis.isvalid
-            ax = subplot(1,1,1);
-            self.figureAxis = ax;
-         else
-            ax = self.figureAxis;
-         end
-         
-         if isempty(ax.Children)
-            hold on;
-            plot(ind,s,'ro');
-            plot(ind,sprime,'bs');
-            ax.XLim = [ind(1) ind(end)];
-            ax.YLabel.String = 'Singular value';
-         else
-            ax.Children(1).YData = s;
-            ax.Children(2).YData = sprime;
-         end
-         
-         ax.Title.String = {sprintf('d=%g, k=%g, fast=%g, alpha=%1.2f',...
-            self.d,self.k,self.fast,self.alpha) ...
-            sprintf('#data=%g, #SVD=%g',self.n_,self.count_)};
-         
-         drawnow;
       end
    end
    
@@ -283,6 +255,36 @@ classdef FrequentDirections < matlab.System
       function resetImpl(self)
          self.n_ = 0;
          self.count_ = 0;
+      end
+      
+      function plot(self,S,Sprime)
+         s = diag(S);
+         sprime = diag(Sprime);
+         ind = 1:numel(s);
+         
+         if isempty(self.figureAxis) || ~self.figureAxis.isvalid
+            ax = subplot(1,1,1);
+            self.figureAxis = ax;
+         else
+            ax = self.figureAxis;
+         end
+         
+         if isempty(ax.Children)
+            hold on;
+            plot(ind,s,'ro');
+            plot(ind,sprime,'bs');
+            ax.XLim = [ind(1) ind(end)];
+            ax.YLabel.String = 'Singular value';
+         else
+            ax.Children(1).YData = s;
+            ax.Children(2).YData = sprime;
+         end
+         
+         ax.Title.String = {sprintf('d=%g, k=%g, fast=%g, alpha=%1.2f',...
+            self.d,self.k,self.fast,self.alpha) ...
+            sprintf('#data=%g, #SVD=%g',self.n_,self.count_)};
+         
+         drawnow;
       end
    end
    
