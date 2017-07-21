@@ -7,25 +7,25 @@
 %     object works for matrices that are stored completely in-memory as well 
 %     as data streams (see examples).
 %
+%     Data dimensionality is determined at run-time from data provided 
+%     (rows are samples, columns are dimensions).
+%
 %     Implements a number of FD variants (Desai et al 2016),
 %        Classic FD: alpha = 1, fast = false
 %           As defined in Liberty (2013)
 %        Fast FD: alpha = 1, fast = true
 %           Fast variant of FD that ensures that at most half of the rows
-%           (k*alpha/2) of B are zeroed at each iteration (Liberty 2013). 
-%           Reduces the runtime from O(ndk^2) to O(ndk) at the expense of a 
-%           sketch sometimes only using half of its rows (i.e., the lower 
-%           half of B may contain all zeroes or actual data samples).
-%           We halve k here; to match Liberty's version, double k.
+%           of B are zeroed at each iteration (Liberty 2013). Reduces the 
+%           runtime from O(ndk^2) to O(ndk), at the expense of double
+%           storage size of sketch while algorithm is running.
 %        Incremental SVD (iSVD): alpha = 0, fast = false
 %        Parameterized FD: alpha = scalar in (0,1), fast = false
 %        Fast Parameterized FD: alpha = scalar in (0,1), fast = true
 %           alpha = 0.2, fast = true produces 'Fast 0.2FD' in Desai et al.
-%
+%        
 %     INPUTS
-%     d - data dimensionality (rows are samples, columns are dimensions)
-%     k - scalar in [1,d], sketch size. Note that this is frequently
-%         referred to as l (ell) in references and other implementations
+%     k - scalar in [1,d], sketch size. Note that this is commonly referred 
+%         to as l (ell) in references and other implementations
 %
 %     OPTIONAL (as name/value pairs, order irrelevant)
 %     fast       - boolean, true indicates fast algorithm (default = TRUE)
@@ -36,25 +36,46 @@
 %     figureAxis - axis handle for use when monitor = TRUE
 %
 %     PROPERTIES
-%     d - data dimensionality determined by data given to object
+%     d - data dimensionality determined at run-time from data provided
 %         (rows are samples, columns are dimensions)
 %
 %     METHODS
-%     step    - given a [n x d] matrix, runs FD until all samples consumed
+%     step    - Given a [n x d] matrix, runs FD until all samples consumed.
+%               After the first call, object parameters are locked, and
+%               subsequent steps must have the same number of columns (d),
+%               and each step is used to build on the current sketch.
+%               obj.step(A) is equivalent to obj(A)
 %     get     - returns sketch, B [k x d]
+%               Setting the input true (i.e. obj.get(true) as opposed to
+%               obj.get() or get(obj)) will return a [2k x d] matrix when
+%               fast = true.
 %     coverr  - given [n x d] matrix A, returns covariance error of sketch
 %               ||A'A - B'B||_2 / ||A||_F^2
+%     projerr - given [n x d] matrix A, returns projection error of sketch
+%               ||A - proj(A,B)||_F^2 / ||A - A_m||_F^2
 %     release - delete current sketch & release resources to change parameters
 %     reset   - reset counters
 %
 %     EXAMPLE
-%     k = 64;          % sketch size
-%     monitor = false; % set true if you want to watch evolution
+%     k = 16;            % sketch size
+%     monitor = false;   % set true to watch evolution of singular values
 %
 %     % Initialize object
 %     sketcher = FrequentDirections(k,'monitor',monitor);
 %     
-%     d = 512;         % data dimensionality
+%     d = 64;            % data dimensionality
+%
+%     % Sketch matrix entirely in-memory
+%     data = randn(1000,d);
+%     sketcher(data);
+%     get(sketcher)
+%
+%     % Sketch streaming data
+%     release(sketcher); % release object to build new sketch
+%     
+%     d = 512;           % different data dimensionality
+%     sketcher.k = 32    % change sketch size
+%
 %     count = 0;
 %     while count < 1000
 %        data = randn(1,d);   % random sample
@@ -106,6 +127,7 @@ classdef FrequentDirections < matlab.System
    
    properties(Access = private)
       d_                % data dimensionality
+      k2_               % Temporary sketch size (doubled for fast=true)
       B_                % sketch
       reduceRankHandle_ % handle to rank reduction algorithm
       n_                % counter tracking # of data samples consumed
@@ -113,7 +135,7 @@ classdef FrequentDirections < matlab.System
    end
    
    properties(SetAccess = immutable)
-      version = '0.1.1' % Version string
+      version = '0.2.0' % Version string
    end
    
    methods
@@ -153,21 +175,36 @@ classdef FrequentDirections < matlab.System
          d = self.d_;
       end
       
-      function B = get(self)
-         B = self.B_;
+      function B = get(self,fullsize)
+         if nargin < 2
+            fullsize = false;
+         end
+         
+         if self.fast && ~fullsize
+            B = self.B_(1:self.k,:);
+         else
+            B = self.B_;
+         end
       end
       
-      function err = coverr(self,A)
-         B = get(self);
+      function err = coverr(self,A,fullsize)
+         if nargin < 3
+            fullsize = false;
+         end
+         B = get(self,fullsize);
          err = norm(A'*A - B'*B)/norm(A,'fro')^2;
       end
       
-      function err = projerr(self,A,Am,m)
+      function err = projerr(self,A,Am,m,fullsize)
+         if nargin < 5
+            fullsize = false;
+         end
+         
          if nargin < 4
             m = 10;
          end
          
-         assert(m<self.k,'m must be less than k');
+         assert(m<=self.k,'m must be less than k');
          
          if (nargin < 3) || isempty(Am)
             % Rank m approximation of A
@@ -175,7 +212,7 @@ classdef FrequentDirections < matlab.System
             Am = U(:,1:m)*S(1:m,1:m)*V(:,1:m)';
          end
          
-         B = get(self);
+         B = get(self,fullsize);
          Bm = B(1:m,:);
          
          Am_ = A*Bm'*pinv(Bm*Bm')*Bm;
@@ -185,15 +222,18 @@ classdef FrequentDirections < matlab.System
    
    methods(Access = protected)
       function setupImpl(self,A)
-         if self.fast
-            self.reduceRankHandle_ = @self.reduceRankFast;
-         else
-            self.reduceRankHandle_ = @self.reduceRankOriginal;
-         end
-         
          [~,p] = size(A);
          self.d_ = p;
-         self.B_ = zeros(self.k,p);
+
+         if self.fast
+            self.reduceRankHandle_ = @self.reduceRankFast;
+            self.k2_ = self.k*2;
+         else
+            self.reduceRankHandle_ = @self.reduceRankOriginal;
+            self.k2_ = self.k;
+         end
+         
+         self.B_ = zeros(self.k2_,p);
       end
       
       function stepImpl(self,A)
@@ -205,7 +245,7 @@ classdef FrequentDirections < matlab.System
          assert(p==self.d_,...
             'Input dimensionality does not match past samples!');
 
-         k = self.k;                                          %#ok<*PROPLC>
+         k = self.k2_;                                        %#ok<*PROPLC>
          alpha = self.alpha;
          reduceRank = self.reduceRankHandle_;
          B = self.B_;
@@ -234,7 +274,7 @@ classdef FrequentDirections < matlab.System
                count = count + 1;
                
                if monitor
-                  plot(self,S,Sprime);
+                  plot(self,S,Sprime,i-1,count);
                end
             end
          end
@@ -242,6 +282,10 @@ classdef FrequentDirections < matlab.System
          self.B_ = B;
          self.count_ = self.count_ + count;
          self.n_ = self.n_ + i - 1;
+         
+         if monitor
+            plot(self,S,Sprime,self.n_,self.count_);
+         end
       end
       
       function releaseImpl(self)
@@ -257,12 +301,13 @@ classdef FrequentDirections < matlab.System
          self.count_ = 0;
       end
       
-      function plot(self,S,Sprime)
+      function plot(self,S,Sprime,n,count)
          s = diag(S);
          sprime = diag(Sprime);
          ind = 1:numel(s);
          
          if isempty(self.figureAxis) || ~self.figureAxis.isvalid
+            figure;
             ax = subplot(1,1,1);
             self.figureAxis = ax;
          else
@@ -282,8 +327,7 @@ classdef FrequentDirections < matlab.System
          
          ax.Title.String = {sprintf('d=%g, k=%g, fast=%g, alpha=%1.2f',...
             self.d,self.k,self.fast,self.alpha) ...
-            sprintf('#data=%g, #SVD=%g',self.n_,self.count_)};
-         
+            sprintf('#data=%g, #SVD=%g',n,count)};
          drawnow;
       end
    end
