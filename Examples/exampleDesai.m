@@ -1,4 +1,8 @@
-% Figure 5 Desai et al.
+% Reproduce Figure 5 Desai et al. using Caltech Birds dataset
+%
+%     Desai, Ghashami, & Phillips (2016). Improved practical matrix sketching 
+%       with guarantees. IEEE Transactions on Knowledge & Data Engineering,
+%       28(7), 1678-1690
 
 clear
 % Check that Birds data exists somewhere

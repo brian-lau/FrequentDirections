@@ -17,8 +17,8 @@ sketcher = FrequentDirections(k,'alpha',alpha);
 % Process streamed data samples
 tic;
 while ~DR.isDone()
-   [image,label] = DR.step();
-   sketcher(image(:)');
+   [image,label] = DR.step(); % load data sample
+   sketcher(image(:)');       % consume
 end
 toc
 

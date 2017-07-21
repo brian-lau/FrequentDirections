@@ -7,7 +7,7 @@ end
 % Construct stream for Birds data
 BR = BirdsReader('filename','image_attribute_labels.txt');
 
-% Sketch object
+% Initialize sketch object
 k = 20;
 alpha = .2;
 sketcher = FrequentDirections(k,'alpha',alpha,'fast',false);
@@ -15,7 +15,7 @@ sketcher = FrequentDirections(k,'alpha',alpha,'fast',false);
 % Process streamed data samples
 tic;
 while ~BR.isDone()
-   attributes = BR.step();
-   sketcher(attributes);
+   attributes = BR.step(); % load data sample
+   sketcher(attributes);   % consume
 end
 toc
