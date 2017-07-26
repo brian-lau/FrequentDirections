@@ -137,7 +137,7 @@ classdef FrequentDirections < matlab.System
    end
    
    properties(SetAccess = immutable)
-      version = '0.2.0' % Version string
+      version = '0.3.0' % Version string
    end
    
    methods
@@ -148,33 +148,43 @@ classdef FrequentDirections < matlab.System
       function set.d_(self,d)
          if ~isempty(d)
             d = fix(d);
-            assert(d>0,'d must be an integer > 0');
-            assert(self.k<=d,'Sketch size k must be <= data dimensionality');
+            assert(d>0,'FrequentDirections:BadDimension',...
+               'd must be an integer > 0');
+            assert(self.k<=d,'FrequentDirections:BadDimension',...
+               'Sketch size k must be <= data dimensionality');
             self.d_ = d;
          end
       end
       
       function set.k(self,k)
          k = fix(k);
-         assert(k>0,'k must be an integer > 0');
+         assert(isscalar(k)&&(k>0),'FrequentDirections:BadInput',...
+            'k must be an scalar integer > 0');
          self.k = k;
       end
       
       function set.alpha(self,alpha)
-         assert((alpha>=0)&&(alpha<=1),'alpha must be in [0,1]');
+         assert(isscalar(alpha)&&(alpha>=0)&&(alpha<=1),...
+            'FrequentDirections:BadInput',...
+            'alpha must be in scalar in [0,1]');
          self.alpha = alpha;
       end
       
       function set.fast(self,fast)
-         if fast
-            self.fast = true;
-         else
-            self.fast = false;
-         end
+         assert(isscalar(fast),'FrequentDirections:BadInput',...
+            'fast must be a scalar boolean');
+         self.fast = logical(fast);
+      end
+      
+      function set.monitor(self,monitor)
+         assert(isscalar(monitor),'FrequentDirections:BadInput',...
+            'monitor must be a scalar boolean');
+         self.monitor = logical(monitor);
       end
       
       function set.figureAxis(self,h)
          assert(isa(h,'matlab.graphics.axis.Axes'),...
+            'FrequentDirections:BadInput',...
             'Input must be of type matlab.graphics.axis.Axes');
          
          self.figureAxis = h;
@@ -200,7 +210,8 @@ classdef FrequentDirections < matlab.System
             fullsize = false;
          end
          
-         assert(~isempty(self.B_),'No sketch to get yet!');
+         assert(~isempty(self.B_),'FrequentDirections:NoOutput',...
+            'No sketch to get yet!');
          
          if self.fast && ~fullsize
             B = self.B_(1:self.k,:);
@@ -255,23 +266,35 @@ classdef FrequentDirections < matlab.System
       % OUTPUT
       % obj - a new FrequentDirections object containing merged sketch
       %
+      % EXAMPLE
+      % s1 = FrequentDirections(16);
+      % s1(randn(1000,16));
+      % s2 = FrequentDirections(16);
+      % s2(randn(1000,16));
+      % s = merge(s1,s2);
+      %
       % SEE ALSO
       % exampleMerge
       function obj = merge(varargin)
          tf = all(cellfun(@(x) isa(x,'FrequentDirections'),varargin));
-         assert(tf,'Inputs must all be FrequentDirections objects.');
+         assert(tf,'FrequentDirections:BadInput',...
+            'Inputs must all be FrequentDirections objects.');
          
          k = cellfun(@(x) x.k,varargin);                        %#ok<*PROP>
-         assert(numel(unique(k))==1,'Merging sketches requires the same k');
+         assert(numel(unique(k))==1,'FrequentDirections:BadInput',...
+            'Merging sketches requires the same k');
          
          d = cellfun(@(x) x.d,varargin);
-         assert(numel(unique(d))==1,'Merging sketches requires the same d');
+         assert(numel(unique(d))==1,'FrequentDirections:BadInput',...
+            'Merging sketches requires the same d');
          
          alpha = cellfun(@(x) x.alpha,varargin);
-         assert(numel(unique(alpha))==1,'Merging sketches requires the same alpha');
+         assert(numel(unique(alpha))==1,'FrequentDirections:BadInput',...
+            'Merging sketches requires the same alpha');
 
          fast = cellfun(@(x) x.fast,varargin);
-         assert(numel(unique(fast))==1,'Merging sketches requires the same fast setting');
+         assert(numel(unique(fast))==1,'FrequentDirections:BadInput',...
+            'Merging sketches requires the same fast setting');
          
          obj = FrequentDirections(k(1),'alpha',alpha(1),'fast',fast(1));
          
@@ -295,7 +318,8 @@ classdef FrequentDirections < matlab.System
    
    methods(Access = protected)
       function setupImpl(self,A)
-         assert(ismatrix(A),'Input must be 2D matrix.');
+         assert(ismatrix(A),'FrequentDirections:BadDimension',...
+            'Input must be 2D matrix.');
          [~,d] = size(A);
          self.d_ = d;
 
@@ -316,7 +340,7 @@ classdef FrequentDirections < matlab.System
          end
          
          [n,p] = size(A);
-         assert(p==self.d_,...
+         assert(p==self.d_,'FrequentDirections:BadDimension',...
             'Input dimensionality does not match past samples!');
 
          k = self.k2_;                                        %#ok<*PROPLC>
