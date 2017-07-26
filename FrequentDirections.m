@@ -1,6 +1,6 @@
 % FREQUENTDIRECTIONS          Streaming low-rank matrix approximation
 % 
-%     sketcher = FrequentDirections(d,k,varargin)
+%     sketcher = FrequentDirections(k,varargin)
 %
 %     Given an [n x d] matrix A, builds a [k x d] sketch B, where typically
 %     k << n, using the Frequent Directions algorithm (Liberty 2013). This 
