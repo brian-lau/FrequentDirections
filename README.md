@@ -1,5 +1,5 @@
 # FrequentDirections
-Matlab code for matrix sketching using Frequent Directions (FD) variants. Implements the original and fast FD algorithms (Liberty 2013) as well as a parameterization that varies smoothly between incremental SVD and FD (Desai et al, 2016).
+Matlab code for matrix sketching using Frequent Directions (FD) variants. Implements the original and fast FD algorithms (Liberty 2013) as well as a parameterization that varies smoothly between iterative SVD and FD (Desai et al, 2016).
 
 ## Installation
 Add the single file [`FrequentDirections.m`](https://github.com/brian-lau/FrequentDirections/blob/master/FrequentDirections.m) to your Matlab path. Adding the directory `Examples` is useful for running the examples.
