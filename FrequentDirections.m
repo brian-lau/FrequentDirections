@@ -18,7 +18,7 @@
 %           of B are zeroed at each iteration (Liberty 2013). Reduces the 
 %           runtime from O(ndk^2) to O(ndk), at the expense of double
 %           storage size of sketch while algorithm is running.
-%        Incremental SVD (iSVD): alpha = 0, fast = false
+%        Iterative SVD (iSVD): alpha = 0, fast = false
 %        Parameterized FD: alpha = scalar in (0,1), fast = false
 %        Fast Parameterized FD: alpha = scalar in (0,1), fast = true
 %           alpha = 0.2, fast = true produces 'Fast 0.2FD' in Desai et al.
@@ -87,6 +87,8 @@
 %     Desai, Ghashami, & Phillips (2016). Improved practical matrix sketching 
 %       with guarantees. IEEE Transactions on Knowledge & Data Engineering,
 %       28(7), 1678-1690
+%     Ghashami et al (2016). Frequent directions: Simple and deterministic 
+%       matrix sketching. SIAM Journal on Computing, 45(5), 1762-1792.
 %     Liberty (2013). Simple and deterministic matrix sketching. In 
 %       Proceedings of the 19th ACM SIGKDD international conference on 
 %       Knowledge discovery and data mining, 581-588
@@ -111,12 +113,12 @@
 classdef FrequentDirections < matlab.System
 
    properties(Dependent)
-      d                 % data dimensionality
+      d                 % data dimensionality (# columns of input matrix)
    end
    
    properties(Nontunable)
       k                 % sketch size
-      alpha = 1         % [0,1] skrinkage control, 0 = iSVD, 1 = original FD
+      alpha = 1         % [0,1] skrinkage control parameter, 0 = iSVD, 1 = original FD
       fast = true       % boolean
    end
    
@@ -171,14 +173,34 @@ classdef FrequentDirections < matlab.System
          end
       end
       
+      function set.figureAxis(self,h)
+         assert(isa(h,'matlab.graphics.axis.Axes'),...
+            'Input must be of type matlab.graphics.axis.Axes');
+         
+         self.figureAxis = h;
+      end
+      
       function d = get.d(self)
          d = self.d_;
       end
       
+      % GET         Return matrix sketch
+      %
+      % INPUT
+      % fullsize - boolean, only relevant when fast = true
+      %            true indicates returning sketch with 2*k rows, the bottom
+      %            half of which may be all zeroes or actual data samples
+      %            default = FALSE
+      %
+      % OUTPUT
+      % B        - [k x d] sketch
+      %            [2k x d] sketch if fullsize = true && fast = true
       function B = get(self,fullsize)
          if nargin < 2
             fullsize = false;
          end
+         
+         assert(~isempty(self.B_),'No sketch to get yet!');
          
          if self.fast && ~fullsize
             B = self.B_(1:self.k,:);
@@ -187,6 +209,7 @@ classdef FrequentDirections < matlab.System
          end
       end
       
+      % COVERR      Covariance error
       function err = coverr(self,A,fullsize)
          if nargin < 3
             fullsize = false;
@@ -195,6 +218,7 @@ classdef FrequentDirections < matlab.System
          err = norm(A'*A - B'*B)/norm(A,'fro')^2;
       end
       
+      % PROJERR     Projection error
       function err = projerr(self,A,Am,m,fullsize)
          if nargin < 5
             fullsize = false;
@@ -218,12 +242,62 @@ classdef FrequentDirections < matlab.System
          Am_ = A*Bm'*pinv(Bm*Bm')*Bm;
          err = norm(A-Am_,'fro')^2 / norm(A-Am,'fro')^2;
       end
+      
+      % MERGE       Merge separate sketches
+      % 
+      % Sketches created using Frequent Directions are mergeable, meaning 
+      % that sketches of data stream partitions can be merged to create a 
+      % single sketch that inherits the error bounds (Ghashami et al, 2016).
+      %
+      % INPUTS
+      % Individual FrequentDirections objects to be merged
+      %
+      % OUTPUT
+      % obj - a new FrequentDirections object containing merged sketch
+      %
+      % SEE ALSO
+      % exampleMerge
+      function obj = merge(varargin)
+         tf = all(cellfun(@(x) isa(x,'FrequentDirections'),varargin));
+         assert(tf,'Inputs must all be FrequentDirections objects.');
+         
+         k = cellfun(@(x) x.k,varargin);                        %#ok<*PROP>
+         assert(numel(unique(k))==1,'Merging sketches requires the same k');
+         
+         d = cellfun(@(x) x.d,varargin);
+         assert(numel(unique(d))==1,'Merging sketches requires the same d');
+         
+         alpha = cellfun(@(x) x.alpha,varargin);
+         assert(numel(unique(alpha))==1,'Merging sketches requires the same alpha');
+
+         fast = cellfun(@(x) x.fast,varargin);
+         assert(numel(unique(fast))==1,'Merging sketches requires the same fast setting');
+         
+         obj = FrequentDirections(k(1),'alpha',alpha(1),'fast',fast(1));
+         
+         B = cellfun(@(x) get(x),varargin,'uni',false);
+         B = cat(1,B{:});
+         
+         % FD on concatenated sketches
+         obj.step(B);
+         
+         % Force a rank reduction if none performed
+         if obj.count_ == 0
+            obj.step(zeros(1,obj.d));
+         end
+         
+         % Update count & n
+         obj.n_ = sum(cellfun(@(x) x.n_,varargin));
+         obj.count_ = obj.count_ + sum(cellfun(@(x) x.count_,varargin));
+      end
+
    end
    
    methods(Access = protected)
       function setupImpl(self,A)
-         [~,p] = size(A);
-         self.d_ = p;
+         assert(ismatrix(A),'Input must be 2D matrix.');
+         [~,d] = size(A);
+         self.d_ = d;
 
          if self.fast
             self.reduceRankHandle_ = @self.reduceRankFast;
@@ -233,7 +307,7 @@ classdef FrequentDirections < matlab.System
             self.k2_ = self.k;
          end
          
-         self.B_ = zeros(self.k2_,p);
+         self.B_ = zeros(self.k2_,d);
       end
       
       function stepImpl(self,A)
@@ -301,6 +375,7 @@ classdef FrequentDirections < matlab.System
          self.count_ = 0;
       end
       
+      % PLOT        Plot singular values
       function plot(self,S,Sprime,n,count)
          s = diag(S);
          sprime = diag(Sprime);
@@ -333,6 +408,7 @@ classdef FrequentDirections < matlab.System
    end
    
    methods(Static)
+      % REDUCERANKORIGINAL    Original rank reduction
       function Sprime = reduceRankOriginal(S,k,alpha)
          s = diag(S);
          sprime = zeros(size(s));
@@ -350,9 +426,11 @@ classdef FrequentDirections < matlab.System
          Sprime = diag(sprime);
       end
       
+      % REDUCERANKFAST        Fast rank reduction
+      %
+      %     Fast variant of FD that ensures that at most half of the rows
+      %     (k*alpha/2) of B are zeroed at each iteration.
       function Sprime = reduceRankFast(S,k,alpha)
-         % Fast variant of FD that ensures that at most half of the rows
-         % (k*alpha/2) of B are zeroed at each iteration
          s = diag(S);
          sprime = zeros(size(s));
          
