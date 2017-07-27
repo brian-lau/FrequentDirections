@@ -1,8 +1,8 @@
 # FrequentDirections
-Matlab code for matrix sketching using Frequent Directions (FD) variants. Implements the original and fast FD algorithms (Liberty 2013) as well as a parameterization that varies smoothly between iterative SVD and FD (Desai et al, 2016).
+Matlab code for deterministic matrix sketching using Frequent Directions (FD) variants. Implements the original and fast FD algorithms (Liberty, 2013) as well as a parameterization that varies smoothly between iterative SVD and FD (Desai et al, 2016).
 
 ## Installation
-Add the single file [`FrequentDirections.m`](https://github.com/brian-lau/FrequentDirections/blob/master/FrequentDirections.m) to your Matlab path. Adding the directory `Examples` is useful for running the examples.
+Add the single file [`FrequentDirections.m`](https://github.com/brian-lau/FrequentDirections/blob/master/FrequentDirections.m) to your Matlab path. Adding the directory `Examples` to the path is useful for running the examples. Unit tests can be run from the `Testing` directory.
 
 ## Examples
 To sketch an in-memory matrix:
@@ -30,13 +30,13 @@ end
 get(sketcher)                      % return sketch
 ```
 
-The script [`exampleDesai.m`](https://github.com/brian-lau/FrequentDirections/blob/master/Examples/exampleDesai.m) reproduces a figure from Desai et al. 2016:
+The script [`exampleDesai.m`](https://github.com/brian-lau/FrequentDirections/blob/master/Examples/exampleDesai.m) reproduces a figure from Desai et al. 2016 illustrating the performance and runtime of different FD variants:
 <img src="https://raw.githubusercontent.com/brian-lau/FrequentDirections/master/Examples/exampleDesai.png?token=AE8LTL05MRJUFS425NSfXQ1tioSTmhjxks5Zeu0QwA%3D%3D" alt="Drawing" style="width: 700px;" />
 
 ## References
 * Desai, A., Ghashami, M., & Phillips, J. M. (2016). [Improved practical matrix sketching with guarantees](http://ieeexplore.ieee.org/abstract/document/7429755/). IEEE Transactions on Knowledge and Data Engineering, 28(7), 1678-1690.
 * Ghashami, M., Liberty, E., Phillips, J. M., & Woodruff, D. P. (2016). [Frequent directions: Simple and deterministic matrix sketching](http://epubs.siam.org/doi/abs/10.1137/15M1009718?journalCode=smjcat). SIAM Journal on Computing, 45(5), 1762-1792.
-* Liberty, E. (2013). [Simple and deterministic matrix sketching](http://www.cs.yale.edu/homes/el327/papers/simpleMatrixSketching.pdf). In Proceedings of the 19th ACM SIGKDD international conference on Knowledge discovery and data mining (pp. 581-588). ACM.
+* Liberty, E. (2013). [Simple and deterministic matrix sketching](http://www.cs.yale.edu/homes/el327/papers/simpleMatrixSketching.pdf). In Proceedings of the 19th ACM SIGKDD international conference on Knowledge discovery and data mining (pp. 581-588).
 
 Contributions
 --------------------------------
