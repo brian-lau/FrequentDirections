@@ -1,20 +1,20 @@
-%    BR = BirdsReader() returns a System object that streams data from
-%    the Caltech-UCSD Birds-200-2011.
+%     BR = BirdsReader() returns a System object that streams data from
+%     the Caltech-UCSD Birds-200-2011.
 %
-%    This object returns the binary attributes (d = 312) for each sample
-%    (n = 11,788). The correctly formatted data file is available here:
+%     This object returns the binary attributes (d = 312) for each sample
+%     (n = 11,788). The correctly formatted data file is available here:
 %
-%    http://www.vision.caltech.edu/visipedia/CUB-200-2011.html
+%     http://www.vision.caltech.edu/visipedia/CUB-200-2011.html
 %
-%    where the attribute data is the text file 'image_attribute_labels.txt'. 
-%    For example, to stream the entire data set:
+%     where the attribute data is the text file 'image_attribute_labels.txt'. 
+%     For example, to stream the entire data set:
 %
-%    BR = BirdsReader('filename','image_attribute_labels.txt');
+%     BR = BirdsReader('filename','image_attribute_labels.txt');
 %    
-%    while ~BR.isDone()
-%       attributes = BR.step();
-%       % do some processing on the current attributes
-%    end
+%     while ~BR.isDone()
+%        attributes = BR.step();
+%        % do some processing on the current attributes
+%     end
 
 %     $ Copyright (C) 2017 Brian Lau, brian.lau@upmc.fr $
 %     The full license and most recent version of the code can be found at:

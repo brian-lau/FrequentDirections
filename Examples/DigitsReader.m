@@ -1,22 +1,22 @@
-%    DR = DigitsReader() returns a System object that streams images from
-%    the MNIST database of handwritten digits.
+%     DR = DigitsReader() returns a System object that streams images from
+%     the MNIST database of handwritten digits.
 %
-%    The binary data files must be somewhere in the Matlab path.
-%    Correctly formatted data is available from Yann Lecun's website:
+%     The binary data files must be somewhere in the Matlab path.
+%     Correctly formatted data is available from Yann Lecun's website:
 %
-%    http://yann.lecun.com/exdb/mnist/
+%     http://yann.lecun.com/exdb/mnist/
 %
-%    where the image data and labels are provided separately. For example,
-%    to stream the training data set (saved in 'train-images-idx3-ubyte'
-%    and 'train-labels-idx1-ubyte'):
+%     where the image data and labels are provided separately. For example,
+%     to stream the training data set (saved in 'train-images-idx3-ubyte'
+%     and 'train-labels-idx1-ubyte'):
 %
-%    DR = DigitsReader('imageFilename','train-images-idx3-ubyte',...
-%                      'labelFilename','train-labels-idx1-ubyte');
+%     DR = DigitsReader('imageFilename','train-images-idx3-ubyte',...
+%                       'labelFilename','train-labels-idx1-ubyte');
 %    
-%    while ~DR.isDone()
-%       [image,label] = DR.step();
-%       % do some processing on the current image
-%    end
+%     while ~DR.isDone()
+%        [image,label] = DR.step();
+%        % do some processing on the current image
+%     end
 
 %     $ Copyright (C) 2017 Brian Lau, brian.lau@upmc.fr $
 %     The full license and most recent version of the code can be found at:

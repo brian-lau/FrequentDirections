@@ -3,7 +3,7 @@
 %     sketcher = FrequentDirections(k,varargin)
 %
 %     Given an [n x d] matrix A, builds a [k x d] sketch B, where typically
-%     k << n, using the Frequent Directions algorithm (Liberty 2013). This 
+%     k << n, using the Frequent Directions algorithm (Liberty, 2013). This 
 %     object works for matrices that are stored completely in-memory as well 
 %     as data streams (see examples).
 %
@@ -107,9 +107,6 @@
 %     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 %     GNU General Public License for more details.
 
-% TODO
-% o  Trigger final SVD for fast = true?
-
 classdef FrequentDirections < matlab.System
 
    properties(Dependent)
@@ -119,7 +116,7 @@ classdef FrequentDirections < matlab.System
    properties(Nontunable)
       k                 % sketch size
       alpha = 1         % [0,1] skrinkage control parameter, 0 = iSVD, 1 = original FD
-      fast = true       % boolean
+      fast = true       % true indicates fast algorithm
    end
    
    properties
@@ -130,7 +127,7 @@ classdef FrequentDirections < matlab.System
    properties(Access = private)
       d_                % data dimensionality
       k2_               % Temporary sketch size (doubled for fast=true)
-      B_                % sketch
+      B_                % Temporary sketch
       reduceRankHandle_ % handle to rank reduction algorithm
       n_                % counter tracking # of data samples consumed
       count_            % counter tracking # of SVD calls
@@ -205,7 +202,9 @@ classdef FrequentDirections < matlab.System
       % OUTPUT
       % B        - [k x d] sketch
       %            [2k x d] sketch if fullsize = true && fast = true
-      function B = get(self,fullsize)
+      % V        - [k x d] columns form an orthonormal basis for the row 
+      %            space of B
+      function [B,V] = get(self,fullsize)
          if nargin < 2
             fullsize = false;
          end
@@ -217,6 +216,10 @@ classdef FrequentDirections < matlab.System
             B = self.B_(1:self.k,:);
          else
             B = self.B_;
+         end
+         
+         if nargout == 2
+            [~,~,V] = svd(B,'econ');
          end
       end
       
@@ -470,6 +473,11 @@ classdef FrequentDirections < matlab.System
          end
          
          Sprime = diag(sprime);
+      end
+      
+      function S = sparseEmbed(A,m)
+         [n,d] = size(A);
+         
       end
    end
 end

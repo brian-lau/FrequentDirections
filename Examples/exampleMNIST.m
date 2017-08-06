@@ -22,11 +22,12 @@ while ~DR.isDone()
 end
 toc
 
-% Plot singular vectors
+% Plot singular vectors (row space of sketch)
+[B,V] = get(sketcher);
+
 figure;
-[~,~,V] = svd(get(sketcher),'econ');
 for i = 1:36
    subplot(6,6,i);
-   imshow(reshape(V(:,i),28,28),[]);
+   imshow(reshape(V(:,i),DR.nCols,DR.nRows),[]);
    title(strcat('SV ',int2str(i)));
 end
