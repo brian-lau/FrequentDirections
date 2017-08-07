@@ -1,4 +1,4 @@
-% FREQUENTDIRECTIONS          Streaming low-rank matrix approximation
+% FREQUENTDIRECTIONS          Streaming deterministic matrix sketching
 % 
 %     sketcher = FrequentDirections(k,varargin)
 %
@@ -117,6 +117,7 @@ classdef FrequentDirections < matlab.System
       k                 % sketch size
       alpha = 1         % [0,1] skrinkage control parameter, 0 = iSVD, 1 = original FD
       fast = true       % true indicates fast algorithm
+      sparse = false    %
    end
    
    properties
@@ -475,9 +476,31 @@ classdef FrequentDirections < matlab.System
          Sprime = diag(sprime);
       end
       
-      function S = sparseEmbed(A,m)
+      % SPARSEEMBED           Sparse subspace embedding
+      %
+      %     Sparse randomized embedding due to Clarkson & Woodruff.
+      %     Uses streaming CountSketch algorithm outlined in Wang (2015),
+      %     Algorithm 3.1.
+      %
+      %     Wang, S. (2015). A practical guide to randomized matrix computations 
+      %       with MATLAB implementations. arXiv preprint arXiv:1505.07570.
+      function B = sparseEmbed(A,k)
          [n,d] = size(A);
+         phi = randsample(k,n,true);  % Sample n items from k w/ replacement
+         %PHI = zeros(k,n);
+         %for i = 1:n
+         %   PHI(phi(i),i) = 1;
+         %end
+         %S = PHI*diag(s);
+         %B = S*A;
          
+         % Sketch without explicitly forming embedding matrix
+         s = 2*(rand(n,1)<0.5) - 1;   % Rademacher
+         A = bsxfun(@times,A,s);      % Randomly sign-flip samples         
+         B = zeros(k,d);
+         for i = 1:n
+            B(phi(i),:) = B(phi(i),:) + A(i,:);
+         end
       end
    end
 end
