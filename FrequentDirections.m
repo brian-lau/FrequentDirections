@@ -92,6 +92,8 @@
 %     Liberty (2013). Simple and deterministic matrix sketching. In 
 %       Proceedings of the 19th ACM SIGKDD international conference on 
 %       Knowledge discovery and data mining, 581-588
+%     Teng & Chu (2017). Low-Rank approximation via sparse frequent directions.
+%       arXiv preprint arXiv:1705.07140.
 
 %     $ Copyright (C) 2017 Brian Lau, brian.lau@upmc.fr $
 %     The full license and most recent version of the code can be found at:
@@ -117,7 +119,8 @@ classdef FrequentDirections < matlab.System
       k                 % sketch size
       alpha = 1         % [0,1] skrinkage control parameter, 0 = iSVD, 1 = original FD
       fast = true       % true indicates fast algorithm
-      sparse = false    %
+      sparse = false    % true indicates FD with sparse embedding
+      beta = 1          % scalar >= 1 && <= n/k
    end
    
    properties
@@ -125,17 +128,27 @@ classdef FrequentDirections < matlab.System
       figureAxis        % axis handle for plotting singular values
    end
    
+   properties(SetAccess = private, GetAccess = public)
+      n                 % counter tracking # of data samples consumed
+   end
+   
+   properties(SetAccess = private, GetAccess = public, Hidden = true)
+      nSVD              % counter tracking # of SVD calls
+      nSparseEmbed      % counter tracking # of sparseEmbed calls
+   end
+   
    properties(Access = private)
       d_                % data dimensionality
       k2_               % Temporary sketch size (doubled for fast=true)
       B_                % Temporary sketch
+      betak_            % Factor for sparse embedding
+      SA_               % Buffer for sparse embedding
+      indSA_            % Current index to append data for sparse embedding
       reduceRankHandle_ % handle to rank reduction algorithm
-      n_                % counter tracking # of data samples consumed
-      count_            % counter tracking # of SVD calls
    end
    
    properties(SetAccess = immutable)
-      version = '0.3.0' % Version string
+      version = '0.5.0' % Version string
    end
    
    methods
@@ -172,6 +185,21 @@ classdef FrequentDirections < matlab.System
          assert(isscalar(fast),'FrequentDirections:BadInput',...
             'fast must be a scalar boolean');
          self.fast = logical(fast);
+      end
+      
+      function set.sparse(self,sparse)
+         assert(isscalar(sparse),'FrequentDirections:BadInput',...
+            'sparse must be a scalar boolean');
+         assert(self.fast,'FrequentDirections:BadInput',...
+            'sparse only works when fast = true');
+         self.sparse = logical(sparse);
+      end
+            
+      function set.beta(self,beta)
+         assert(isscalar(beta)&&(beta>=1),...
+            'FrequentDirections:BadInput',...
+            'beta must be scalar >= 1');
+         self.beta = beta;
       end
       
       function set.monitor(self,monitor)
@@ -222,6 +250,17 @@ classdef FrequentDirections < matlab.System
          if nargout == 2
             [~,~,V] = svd(B,'econ');
          end
+      end
+      
+      % APPROX      Low-rank approximation
+      function Ak = approx(self,A,k)
+         [~,V] = get(self);
+         if nargin < 3
+            k = self.k;
+         end
+         [U,S,V2] = svd(A*V,'econ');
+         AVk = U(:,1:k)*S(1:k,1:k)*V2(:,1:k)';
+         Ak = AVk*V';
       end
       
       % COVERR      Covariance error
@@ -309,13 +348,13 @@ classdef FrequentDirections < matlab.System
          obj.step(B);
          
          % Force a rank reduction if none performed
-         if obj.count_ == 0
+         if obj.nSVD == 0
             obj.step(zeros(1,obj.d));
          end
          
          % Update count & n
-         obj.n_ = sum(cellfun(@(x) x.n_,varargin));
-         obj.count_ = obj.count_ + sum(cellfun(@(x) x.count_,varargin));
+         obj.n = sum(cellfun(@(x) x.n,varargin));
+         obj.nSVD = obj.nSVD + sum(cellfun(@(x) x.nSVD,varargin));
       end
 
    end
@@ -336,6 +375,12 @@ classdef FrequentDirections < matlab.System
          end
          
          self.B_ = zeros(self.k2_,d);
+         % TODO : preload first block of data? 1:min(size(A,1),k)
+         
+         if self.sparse
+            self.betak_ = fix(self.beta*self.k);
+            self.SA_ = zeros(self.betak_,d);
+         end
       end
       
       function stepImpl(self,A)
@@ -343,8 +388,8 @@ classdef FrequentDirections < matlab.System
             return;
          end
          
-         [n,p] = size(A);
-         assert(p==self.d_,'FrequentDirections:BadDimension',...
+         [n,d] = size(A);
+         assert(d==self.d_,'FrequentDirections:BadDimension',...
             'Input dimensionality does not match past samples!');
 
          k = self.k2_;                                        %#ok<*PROPLC>
@@ -352,41 +397,75 @@ classdef FrequentDirections < matlab.System
          reduceRank = self.reduceRankHandle_;
          B = self.B_;
          monitor = self.monitor;
-
+         sparse = self.sparse;
+         if sparse
+            k1 = self.k;
+            betak = self.betak_;
+            indSA = self.indSA_;
+            SA = self.SA_;
+            nSparseEmbed = self.nSparseEmbed;
+         end
+         
          %% Generic Frequent Directions algorithm
-         count = 0; % keep track of SVD calls
-         ind = [];  % keep track of zero rows of B
-         i = 1;     % keep track of data samples appended
+         nSVD = 0;              % Keep track of SVD calls
+         indB = find(~any(B,2)); % Index all-zero rows of B
+         i = 1;                  % Keep track of data samples appended
          while i <= n
-            if isempty(ind)
-               % Index all-zero rows of B
-               ind = find(~any(B,2));
+            % Append data
+            if ~isempty(indB)
+               if sparse
+                  if indSA < betak          % Space available in buffer
+                     SA(indSA,:) = A(i,:);
+                     indSA = indSA + 1;
+                     i = i + 1;
+                  else                      % Trigger sparse embedding
+                     SA = self.sparseEmbed(SA,k1);
+                     nSparseEmbed = nSparseEmbed + 1;
+                     if nSparseEmbed == 1
+                        B(1:k1,:) = SA;
+                     else
+                        B(k1+1:end,:) = SA;
+                        indB = [];          % Set empty to update sketch
+                     end
+                     indSA = 1;
+                     SA = zeros(betak,d);
+                  end
+               else
+                  % Insert next data sample into first non-zero row of B
+                  B(indB(1),:) = A(i,:);
+                  indB(1) = [];
+                  i = i + 1;
+               end
             end
             
-            if ~isempty(ind)
-               % Insert next data sample into first non-zero row of B
-               B(ind(1),:) = A(i,:);
-               ind(1) = [];
-               i = i + 1;
-            else
-               % Update sketch
+            % Update sketch
+            if isempty(indB)
                [~,S,V] = svd(B,'econ');
                Sprime = reduceRank(S,k,alpha);
                B = Sprime*V';
-               count = count + 1;
+               nSVD = nSVD + 1;
+               
+               % Index remaining all-zero rows of B
+               indB = find(~any(B,2));
                
                if monitor
-                  plot(self,S,Sprime,i-1,count);
+                  plot(self,S,Sprime,i-1,nSVD);
                end
             end
          end
          
          self.B_ = B;
-         self.count_ = self.count_ + count;
-         self.n_ = self.n_ + i - 1;
+         self.nSVD = self.nSVD + nSVD;
+         self.n = self.n + i - 1;
+         
+         if sparse
+            self.indSA_ = indSA;
+            self.SA_ = SA;
+            self.nSparseEmbed = nSparseEmbed;
+         end
          
          if monitor
-            plot(self,S,Sprime,self.n_,self.count_);
+            plot(self,S,Sprime,self.n,self.nSVD);
          end
       end
       
@@ -399,8 +478,10 @@ classdef FrequentDirections < matlab.System
       end
       
       function resetImpl(self)
-         self.n_ = 0;
-         self.count_ = 0;
+         self.n = 0;
+         self.nSVD = 0;
+         self.nSparseEmbed = 0;
+         self.indSA_ = 1;
       end
       
       % PLOT        Plot singular values
@@ -432,7 +513,7 @@ classdef FrequentDirections < matlab.System
             self.d,self.k,self.fast,self.alpha) ...
             sprintf('#data=%g, #SVD=%g',n,count)};
          drawnow;
-      end
+      end      
    end
    
    methods(Static)
