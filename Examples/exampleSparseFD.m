@@ -9,7 +9,7 @@
 %
 clear
 
-if 0 % Birds data
+if 1 % Birds data
    DR = BirdsReader();
    p = 50; % Approximating rank (k in table 4.1)
    k = 50:10:150;
@@ -38,7 +38,7 @@ color = ['g' 'g' 'g' 'k'];
 tic;
 [U,S,V] = svd(A,'econ');
 bruteRuntime = toc;
-Am = U(:,1:p)*S(1:m,1:p)*V(:,1:p)'; % For projection error
+Am = U(:,1:p)*S(1:p,1:p)*V(:,1:p)'; % For projection error
 
 %% This can take a little time
 count = 1;
@@ -69,13 +69,10 @@ figure;
 subplot(131);
 hold on;
 for i = 1:numel(id)
-   g1(i) = plot(k',coverr(:,i),'-','color',color(i));
+   g1(i) = plot(k',coverr(:,i),[symbol(i) '-'],'color',color(i),...
+      'Markerfacecolor',color(i));
 end
 legend(id);
-for i = 1:numel(id)
-   g2 = plot(k',coverr(:,i),symbol(i),...
-      'Color',g1(i).Color,'Markerfacecolor',g1(i).Color);
-end
 axis([min(k) max(k) 0 0.07]);
 xlabel('Sketch size');
 ylabel('Covariance error');
@@ -83,27 +80,19 @@ ylabel('Covariance error');
 subplot(132);
 hold on;
 for i = 1:numel(id)
-   g1(i) = plot(k',projerr(:,i),'-','color',color(i));
-end
-%legend(id);
-for i = 1:numel(id)
-   g2 = plot(k',projerr(:,i),symbol(i),...
-      'Color',g1(i).Color,'Markerfacecolor',g1(i).Color);
+   g1(i) = plot(k',projerr(:,i),[symbol(i) '-'],'color',color(i),...
+      'Markerfacecolor',color(i));
 end
 axis tight
-axis([min(k) max(k) 1 1.4])
+axis([min(k) max(k) 0.975 1.4])
 xlabel('Sketch size');
-ylabel('Projection error');
+ylabel('Relative error (F norm)');
 
 subplot(133);
 hold on;
 for i = 1:numel(id)
-   g1(i) = plot(k',runtime(:,i),'-','color',color(i));
-end
-%legend(id);
-for i = 1:numel(id)
-   g2 = plot(k',runtime(:,i),symbol(i),...
-      'Color',g1(i).Color,'Markerfacecolor',g1(i).Color);
+   g1(i) = plot(k',runtime(:,i),[symbol(i) '-'],'color',color(i),...
+      'Markerfacecolor',color(i));
 end
 plot([k(1) k(end)],[bruteRuntime bruteRuntime],'k--');
 axis tight

@@ -23,7 +23,7 @@
 %        Fast Parameterized FD: alpha = scalar in (0,1), fast = true
 %           alpha = 0.2, fast = true produces 'Fast 0.2FD' in Desai et al.
 %
-%     Also implements one non-deterministic method of Teng & Chu (2017)
+%     Also implements one randomized FD variant due to Teng & Chu (2017)
 %     that uses a sparse subspace embedding as an intermediate step to
 %     increase efficiency and take advantage of any sparsity in the input
 %     matrix:
@@ -96,6 +96,10 @@
 %        sketcher(data);      % consume sample
 %        count = count + 1;
 %     end
+%
+%     % Do something with sketch, e.g., approximate covariance matrix
+%     B = get(sketcher);
+%     covA = B'*B;
 %
 %     REFERENCE
 %     Desai, Ghashami, & Phillips (2016). Improved practical matrix sketching 
@@ -338,6 +342,7 @@ classdef FrequentDirections < matlab.System
       % s2 = FrequentDirections(16);
       % s2(randn(1000,16));
       % s = merge(s1,s2);
+      % B = get(s);
       %
       % SEE ALSO
       % exampleMerge
@@ -429,7 +434,7 @@ classdef FrequentDirections < matlab.System
          end
          
          %% Generic Frequent Directions algorithm
-         nSVD = 0;              % Keep track of SVD calls
+         nSVD = 0;               % Keep track of SVD calls
          indB = find(~any(B,2)); % Index all-zero rows of B
          i = 1;                  % Keep track of data samples appended
          while i <= n
