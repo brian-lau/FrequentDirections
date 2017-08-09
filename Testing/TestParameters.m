@@ -75,6 +75,22 @@ classdef TestParameters < matlab.unittest.TestCase
          testCase.assertError(@() FrequentDirections(16,'fast',[1 2]),...
             'FrequentDirections:BadInput');
       end
+
+      function good_sparse(testCase)
+         k = 16;
+         fd = FrequentDirections(k,'sparse',true);
+
+         testCase.assertEqual(fd.sparse,true);
+         
+         fd = FrequentDirections(k,'sparse',false);
+         
+         testCase.assertEqual(fd.sparse,false);
+      end
+      
+      function bad_sparse(testCase)
+         testCase.assertError(@() FrequentDirections(16,'fast',0,'sparse',1),...
+            'FrequentDirections:BadInput');
+      end
       
       function good_monitor(testCase)
          k = 16;

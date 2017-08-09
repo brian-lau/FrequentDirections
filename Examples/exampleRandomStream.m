@@ -11,6 +11,13 @@ while count < 1000
    count = count + 1;
 end
 
+% Retrieve sketch
+B = sketcher.get();
+
+% Do something with sketch, e.g., approximate covariance matrix
+covA = B'*B;
+
+% To sketch a different matrix, release resources
 sketcher.release();
 
 %% Stream blocks of samples

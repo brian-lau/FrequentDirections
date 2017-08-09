@@ -22,7 +22,15 @@
 %        Parameterized FD: alpha = scalar in (0,1), fast = false
 %        Fast Parameterized FD: alpha = scalar in (0,1), fast = true
 %           alpha = 0.2, fast = true produces 'Fast 0.2FD' in Desai et al.
-%        
+%
+%     Also implements one non-deterministic method of Teng & Chu (2017)
+%     that uses a sparse subspace embedding as an intermediate step to
+%     increase efficiency and take advantage of any sparsity in the input
+%     matrix:
+%        SpEmb: sparse = true, alpha = 1, fast = true 
+%               beta >= 1 controls the blocksize for sparse embedding,
+%               which is equal to beta*k
+%
 %     INPUTS
 %     k - scalar in [1,d], sketch size. Note that this is commonly referred 
 %         to as l (ell) in references and other implementations
@@ -31,6 +39,11 @@
 %     fast       - boolean, true indicates fast algorithm (default = TRUE)
 %     alpha      - scalar in [0,1], controls fraction of sketch rows zeroed
 %                  on each rank reduction (default = 1)
+%     sparse     - boolean, true indicates sparse algorithm (default = FALSE)
+%     beta       - scalar >= 1, determines the size of sparse embedding.
+%                  beta*k is the number of rows of A that are reduced on
+%                  each iteration (detault = 10)
+%                  Note that Teng & Chu (2017) use alpha for this parameter
 %     monitor    - boolean, true plots singular values at each rank reduction
 %                  (default = FALSE)
 %     figureAxis - axis handle for use when monitor = TRUE
@@ -49,6 +62,7 @@
 %               Setting the input true (i.e. obj.get(true) as opposed to
 %               obj.get() or get(obj)) will return a [2k x d] matrix when
 %               fast = true.
+%     approx  - return a low-rank approximation
 %     coverr  - given [n x d] matrix A, returns covariance error of sketch
 %               ||A'A - B'B||_2 / ||A||_F^2
 %     projerr - given [n x d] matrix A, returns projection error of sketch
@@ -120,7 +134,7 @@ classdef FrequentDirections < matlab.System
       alpha = 1         % [0,1] skrinkage control parameter, 0 = iSVD, 1 = original FD
       fast = true       % true indicates fast algorithm
       sparse = false    % true indicates FD with sparse embedding
-      beta = 1          % scalar >= 1 && <= n/k
+      beta = 10         % scalar >= 1 && <= n/k
    end
    
    properties
@@ -253,6 +267,15 @@ classdef FrequentDirections < matlab.System
       end
       
       % APPROX      Low-rank approximation
+      %
+      % INPUT
+      % A  - [n x d] matrix to approximate
+      %
+      % OPTIONAL
+      % k  - rank, defaults to sketch size k
+      %
+      % OUTPUT
+      % Ak - [n x d] low-rank approximation using sketch
       function Ak = approx(self,A,k)
          [~,V] = get(self);
          if nargin < 3
@@ -352,7 +375,7 @@ classdef FrequentDirections < matlab.System
             obj.step(zeros(1,obj.d));
          end
          
-         % Update count & n
+         % Update counters
          obj.n = sum(cellfun(@(x) x.n,varargin));
          obj.nSVD = obj.nSVD + sum(cellfun(@(x) x.nSVD,varargin));
       end
@@ -375,7 +398,6 @@ classdef FrequentDirections < matlab.System
          end
          
          self.B_ = zeros(self.k2_,d);
-         % TODO : preload first block of data? 1:min(size(A,1),k)
          
          if self.sparse
             self.betak_ = fix(self.beta*self.k);
@@ -411,7 +433,7 @@ classdef FrequentDirections < matlab.System
          indB = find(~any(B,2)); % Index all-zero rows of B
          i = 1;                  % Keep track of data samples appended
          while i <= n
-            % Append data
+            %% Append data
             if ~isempty(indB)
                if sparse
                   if indSA < betak          % Space available in buffer
@@ -438,7 +460,7 @@ classdef FrequentDirections < matlab.System
                end
             end
             
-            % Update sketch
+            %% Update sketch
             if isempty(indB)
                [~,S,V] = svd(B,'econ');
                Sprime = reduceRank(S,k,alpha);
@@ -472,6 +494,8 @@ classdef FrequentDirections < matlab.System
       function releaseImpl(self)
          self.B_ = [];
          self.d_ = [];
+         self.betak_ = [];
+         self.SA_ = [];
          if self.monitor
             close(self.figureAxis.Parent);
          end

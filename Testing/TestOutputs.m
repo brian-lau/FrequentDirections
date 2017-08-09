@@ -28,7 +28,7 @@ classdef TestOutputs < matlab.unittest.TestCase
             'FrequentDirections:BadInput');
 
          fd2.k = 16;
-         fd1(rand(32,16));
+         fd1(rand(32,24));
          fd2(rand(32,32));
 
          testCase.assertError(@() merge(fd1,fd2),...

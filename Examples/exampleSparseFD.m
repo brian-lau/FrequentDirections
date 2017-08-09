@@ -1,25 +1,34 @@
-% Reproduce part of Figure 4 of Teng & Chu using Caltech Birds dataset
+% Reproduce part of Figure 4 & 5 of Teng & Chu 
 %
 %     Teng & Chu (2017). Low-Rank approximation via sparse frequent directions.
 %       arXiv preprint arXiv:1705.07140.
-
+%
+% TODO
+%   o average over reps since sparse method is not deterministic
+%   o runtimes don't seem to match Teng & Chu (their vanilla FD is slow?)
+%
 clear
-% Check that Birds data exists somewhere
-if ~exist('image_attribute_labels.txt','file')
-   help('BirdsReader');
-   error('Birds data must be downloaded first');
+
+if 0 % Birds data
+   DR = BirdsReader();
+   p = 50; % Approximating rank (k in table 4.1)
+   k = 50:10:150;
+   % Load entire data set into memory
+   DR.blockSize = inf;
+   A = DR();
+else % MNIST data
+   DR = DigitsReader();
+   p = 100; % Approximating rank (k in table 4.1)
+   k = 100:10:200;
+   % Load entire data set into memory
+   DR.blockSize = inf;
+   A = DR();
+   
+   A = reshape(A,28*28,60000)';
 end
-
-% Reader for Birds data
-BR = BirdsReader('filename','image_attribute_labels.txt');
-
-% Load entire data set into memory
-BR.blockSize = inf;
-A = BR();
 
 n = size(A,1);
 
-k = 50:10:150;
 sp = [true true true false];
 nbetak = [5 10 50 1];
 id = {'SpFD5' 'SpFD10' 'SpFD50' 'FastFD'};
@@ -27,10 +36,9 @@ symbol = ['^' 'd' '+' 's'];
 color = ['g' 'g' 'g' 'k'];
 
 tic;
-[U,S,V] = svd(A);
+[U,S,V] = svd(A,'econ');
 bruteRuntime = toc;
-m = 50;
-Am = U(:,1:m)*S(1:m,1:m)*V(:,1:m)'; % For projection error
+Am = U(:,1:p)*S(1:m,1:p)*V(:,1:p)'; % For projection error
 
 %% This can take a little time
 count = 1;
@@ -47,7 +55,7 @@ for kk = k
       
       coverr(count,m) = sketcher.coverr(A);
       
-      Am_ = sketcher.approx(A,50);
+      Am_ = sketcher.approx(A,p);
       projerr(count,m) = norm(A-Am_,'fro')/norm(A-Am,'fro');
       
       nSVD(count,m) = sketcher.nSVD;

@@ -11,8 +11,7 @@ DR = DigitsReader('imageFilename','train-images-idx3-ubyte',...
 
 % Sketch object
 k = 64;
-alpha = 0.2;
-sketcher = FrequentDirections(k,'alpha',alpha);
+sketcher = FrequentDirections(k);
 
 % Process streamed data samples
 tic;
